@@ -22,7 +22,6 @@ export async function getFeaturedCars(limit = 3) {
   try {
     const cars = await db.car.findMany({
       where: {
-        featured: true,
         status: "AVAILABLE",
       },
       take: limit,

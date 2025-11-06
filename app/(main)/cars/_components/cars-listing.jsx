@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { CarCard } from "@/components/car-card";
 import useFetch from "@/hooks/use-fetch";
-import { getCars } from "@/actions/car-listing";
+import { getFilteredCars } from "@/actions/car-listing";
 import CarListingsLoading from "./car-listing-loading";
 
 import {
@@ -39,7 +39,7 @@ export function CarListings() {
   const page = parseInt(searchParams.get("page") || "1");
 
   // Use the useFetch hook
-  const { loading, fn: fetchCars, data: result, error } = useFetch(getCars);
+  const { loading, fn: fetchCars, data: result, error } = useFetch(getFilteredCars);
 
   // Fetch cars when filters change
   useEffect(() => {
@@ -97,7 +97,7 @@ export function CarListings() {
   if (error || (result && !result.success)) {
     return (
       <Alert variant="destructive">
-        <Info className="h-4 w-4" />
+        <Info className="w-4 h-4" />
         <AlertTitle>Error</AlertTitle>
         <AlertDescription>
           Failed to load cars. Please try again later.
@@ -116,12 +116,12 @@ export function CarListings() {
   // No results
   if (cars.length === 0) {
     return (
-      <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-8 border rounded-lg bg-gray-50">
-        <div className="bg-gray-100 p-4 rounded-full mb-4">
-          <Info className="h-8 w-8 text-gray-500" />
+      <div className="flex flex-col justify-center items-center bg-gray-50 p-8 border rounded-lg min-h-[400px] text-center">
+        <div className="bg-gray-100 mb-4 p-4 rounded-full">
+          <Info className="w-8 h-8 text-gray-500" />
         </div>
-        <h3 className="text-lg font-medium mb-2">No cars found</h3>
-        <p className="text-gray-500 mb-6 max-w-md">
+        <h3 className="mb-2 font-medium text-lg">No cars found</h3>
+        <p className="mb-6 max-w-md text-gray-500">
           We couldn't find any cars matching your search criteria. Try adjusting
           your filters or search term.
         </p>
@@ -204,7 +204,7 @@ export function CarListings() {
       </div>
 
       {/* Car grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {cars.map((car) => (
           <CarCard key={car.id} car={car} />
         ))}

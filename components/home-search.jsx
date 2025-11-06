@@ -1,205 +1,177 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Search, Upload, Camera } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Search, Upload, Loader2, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { useDropzone } from "react-dropzone";
-import { useRouter } from "next/navigation";
 import { processImageSearch } from "@/actions/home";
 import useFetch from "@/hooks/use-fetch";
 
-export function HomeSearch() {
+export const HomeSearch = () => {
   const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchImage, setSearchImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [isImageSearchActive, setIsImageSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dragActive, setDragActive] = useState(false);
 
-  // Use the useFetch hook for image processing
   const {
     loading: isProcessing,
     fn: processImageFn,
-    data: processResult,
-    error: processError,
+    data: imageResult,
+    error: imageError,
   } = useFetch(processImageSearch);
 
-  // Handle process result and errors with useEffect
-  useEffect(() => {
-    if (processResult?.success) {
-      const params = new URLSearchParams();
-
-      // Add extracted params to the search
-      if (processResult.data.make) params.set("make", processResult.data.make);
-      if (processResult.data.bodyType)
-        params.set("bodyType", processResult.data.bodyType);
-      if (processResult.data.color)
-        params.set("color", processResult.data.color);
-
-      // Redirect to search results
-      router.push(`/cars?${params.toString()}`);
-    }
-  }, [processResult, router]);
-
-  useEffect(() => {
-    if (processError) {
-      toast.error(
-        "Failed to analyze image: " + (processError.message || "Unknown error")
-      );
-    }
-  }, [processError]);
-
-  // Handle image upload with react-dropzone
-  const onDrop = (acceptedFiles) => {
-    const file = acceptedFiles[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("Image size must be less than 5MB");
-        return;
-      }
-
-      setIsUploading(true);
-      setSearchImage(file);
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-        setIsUploading(false);
-        toast.success("Image uploaded successfully");
-      };
-      reader.onerror = () => {
-        setIsUploading(false);
-        toast.error("Failed to read the image");
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const { getRootProps, getInputProps, isDragActive, isDragReject } =
-    useDropzone({
-      onDrop,
-      accept: {
-        "image/*": [".jpeg", ".jpg", ".png"],
-      },
-      maxFiles: 1,
-    });
-
-  // Handle text search submissions
   const handleTextSearch = (e) => {
     e.preventDefault();
-    if (!searchTerm.trim()) {
-      toast.error("Please enter a search term");
-      return;
+    if (searchQuery.trim()) {
+      router.push(`/cars?search=${encodeURIComponent(searchQuery.trim())}`);
     }
-
-    router.push(`/cars?search=${encodeURIComponent(searchTerm)}`);
   };
 
-  // Handle image search submissions
-  const handleImageSearch = async (e) => {
-    e.preventDefault();
-    if (!searchImage) {
-      toast.error("Please upload an image first");
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload a valid image file");
       return;
     }
 
-    // Use the processImageFn from useFetch hook
-    await processImageFn(searchImage);
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size should be less than 5MB");
+      return;
+    }
+
+    try {
+      const result = await processImageFn(file);
+      
+      if (result?.success && result?.data) {
+        const { make, bodyType, color } = result.data;
+        
+        // Build search URL with AI-extracted parameters
+        const params = new URLSearchParams();
+        if (make) params.append("make", make);
+        if (bodyType) params.append("bodyType", bodyType);
+        if (color) params.append("search", color);
+        
+        toast.success("Image processed successfully! Redirecting to results...");
+        router.push(`/cars?${params.toString()}`);
+      } else {
+        toast.error("Could not process the image. Please try again.");
+      }
+    } catch (error) {
+      toast.error("Failed to process image. Please try again.");
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragActive(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      handleImageUpload(files[0]);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setDragActive(false);
   };
 
   return (
-    <div>
-      <form onSubmit={handleTextSearch}>
-        <div className="relative flex items-center">
-          <Search className="absolute left-3 w-5 h-5" />
+    <div className="space-y-6">
+      {/* Text Search */}
+      <form onSubmit={handleTextSearch} className="flex gap-4">
+        <div className="relative flex-1">
+          <Search className="top-1/2 left-4 absolute w-5 h-5 text-gray-400 -translate-y-1/2 transform" />
           <Input
             type="text"
-            placeholder="Enter make, model, or use our AI Image Search..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-12 py-6 w-full rounded-full border-gray-300 bg-white/95 backdrop-blur-sm"
+            placeholder="Search by make, model, or color..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="bg-white/90 backdrop-blur-sm pl-12 border-white/30 focus:border-yellow-400 h-14 text-lg"
           />
-
-          {/* Image Search Button */}
-          <div className="absolute right-[100px]">
-            <Camera
-              size={35}
-              onClick={() => setIsImageSearchActive(!isImageSearchActive)}
-              className="cursor-pointer rounded-xl p-1.5"
-              style={{
-                background: isImageSearchActive ? "black" : "",
-                color: isImageSearchActive ? "white" : "",
-              }}
-            />
-          </div>
-
-          <Button type="submit" className="absolute right-2 rounded-full">
-            Search
-          </Button>
         </div>
+        <Button
+          type="submit"
+          size="lg"
+          className="bg-gradient-to-r from-yellow-400 hover:from-yellow-500 to-yellow-500 hover:to-yellow-600 px-8 h-14 font-semibold text-black"
+        >
+          Search
+        </Button>
       </form>
 
-      {isImageSearchActive && (
-        <div className="mt-4">
-          <form onSubmit={handleImageSearch} className="space-y-4">
-            <div className="border-2 border-dashed border-gray-300 rounded-3xl p-6 text-center">
-              {imagePreview ? (
-                <div className="flex flex-col items-center">
-                  <img
-                    src={imagePreview}
-                    alt="Car preview"
-                    className="h-40 object-contain mb-4"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSearchImage(null);
-                      setImagePreview("");
-                      toast.info("Image removed");
-                    }}
-                  >
-                    Remove Image
-                  </Button>
-                </div>
-              ) : (
-                <div {...getRootProps()} className="cursor-pointer">
-                  <input {...getInputProps()} />
-                  <div className="flex flex-col items-center">
-                    <Upload className="h-12 w-12 text-gray-400 mb-2" />
-                    <p className="text-gray-500 mb-2">
-                      {isDragActive && !isDragReject
-                        ? "Leave the file here to upload"
-                        : "Drag & drop a car image or click to select"}
-                    </p>
-                    {isDragReject && (
-                      <p className="text-red-500 mb-2">Invalid image type</p>
-                    )}
-                    <p className="text-gray-400 text-sm">
-                      Supports: JPG, PNG (max 5MB)
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+      {/* Divider */}
+      <div className="flex items-center gap-4">
+        <div className="flex-1 bg-white/30 h-px"></div>
+        <span className="font-medium text-white/80">OR</span>
+        <div className="flex-1 bg-white/30 h-px"></div>
+      </div>
 
-            {imagePreview && (
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={isUploading || isProcessing}
-              >
-                {isUploading
-                  ? "Uploading..."
-                  : isProcessing
-                  ? "Analyzing image..."
-                  : "Search with this Image"}
-              </Button>
+      {/* Image Upload */}
+      <div
+        className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
+          dragActive
+            ? "border-yellow-400 bg-yellow-400/10"
+            : "border-white/30 bg-white/5"
+        } ${isProcessing ? "opacity-50 pointer-events-none" : "hover:border-yellow-400 hover:bg-yellow-400/5"}`}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+      >
+        <div className="space-y-4">
+          <div className="flex justify-center items-center bg-gradient-to-br from-yellow-400 to-yellow-500 mx-auto rounded-full w-16 h-16">
+            {isProcessing ? (
+              <Loader2 className="w-8 h-8 text-black animate-spin" />
+            ) : (
+              <Camera className="w-8 h-8 text-black" />
             )}
-          </form>
+          </div>
+          
+          <div>
+            <h3 className="mb-2 font-semibold text-white text-xl">
+              {isProcessing ? "Processing Image..." : "AI-Powered Image Search"}
+            </h3>
+            <p className="mb-4 text-white/80">
+              Upload a car image and let our AI find similar vehicles
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="bg-white/10 hover:bg-white/20 border-white/30 text-white"
+              onClick={() => document.getElementById("image-upload").click()}
+              disabled={isProcessing}
+            >
+              <Upload className="mr-2 w-5 h-5" />
+              Choose Image
+            </Button>
+            
+            <input
+              id="image-upload"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImageUpload(file);
+              }}
+            />
+            
+            <p className="text-white/60 text-sm">
+              Drag & drop an image here, or click to browse
+            </p>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
-}
+};
