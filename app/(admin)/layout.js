@@ -4,10 +4,16 @@ import { getAdmin } from "@/actions/admin";
 import Header from "@/components/header";
 
 export default async function AdminLayout({ children }) {
-  const admin = await getAdmin();
+  let admin;
+  try {
+    admin = await getAdmin();
+  } catch (error) {
+    console.error('Admin check failed:', error);
+    return notFound();
+  }
 
   // If user not found in our db or not an admin, redirect to 404
-  if (!admin.authorized) {
+  if (!admin || !admin.authorized) {
     return notFound();
   }
 
